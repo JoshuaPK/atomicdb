@@ -2,12 +2,11 @@
 # citusdb clusters.  It is designed to use kubernetes to support
 # multiple nodes
 
-FROM fedora:24
+FROM centos:7
 
 ADD ./scripts/ /scripts/
 
 RUN /scripts/package_install.sh
 
 EXPOSE 5432
-
 CMD ["/bin/bash", "/scripts/entrypoint.sh"]
