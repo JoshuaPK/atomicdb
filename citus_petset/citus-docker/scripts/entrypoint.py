@@ -137,6 +137,24 @@ if not os.path.exists('/pgdata/data/initialized'):
       cur.execute("SELECT register_nodes(%s, %s, %s)",
         (os.getenv("SET_SIZE"),os.getenv("POD_GROUP"),pod_domain))
 
+  conn.close()
+
+  # Create a temporary database so that we have something to connect to while we
+  # recreate the "postgres" database.  With original code we got an error while
+  # dropping/recreating "postgres" database because the connection was still
+  # open on the template1 database.
+
+  conn = psycopg2.connect("dbname=postgres")
+  conn.autocommit = True
+  cur = conn.cursor()
+
+  cur.execute("CREATE DATABASE temp1")
+  conn.close()
+
+  conn = psycopg2.connect("dbname=temp1")
+  conn.autocommit = True
+  cur = conn.cursor()
+
   # recreate postgres database so that it gets that stuff
   cur.execute("DROP DATABASE postgres")
   cur.execute("CREATE DATABASE postgres")
