@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import signal
 import subprocess
 import csv
 import requests
@@ -76,7 +77,7 @@ def connect_db(dbhost,dbname="template1"):
                 conn = psycopg2.connect("dbname={0} host={1} user=postgres".format(dbname, dbhost))
                 break
             except:
-                sleep(5 * poll)
+                time.sleep(5 * poll)
     if conn is None:
         raise Exception('Unable to reach the query node, failing startup')
     conn.autocommit = True
@@ -148,6 +149,19 @@ if not os.path.exists('/pgdata/data/initialized'):
   conn.autocommit = True
   cur = conn.cursor()
 
+  # Get the PID of the Citus Management Daemon that is spawned when Citus extension is installed
+  # in template1 database.
+
+  cur.execute("select pid from pg_stat_activity where application_name = 'Citus Maintenance Daemon'")
+  daemon_pid_row = cur.fetchone()
+  daemon_pid = daemon_pid_row[0]
+
+  # Kill the daemon
+
+  os.kill(daemon_pid, signal.SIGTERM)
+
+  # Create the new databases
+
   cur.execute("CREATE DATABASE temp1")
   conn.close()
 
@@ -162,11 +176,17 @@ if not os.path.exists('/pgdata/data/initialized'):
   cur.execute("CREATE DATABASE citusdb OWNER admin")
   conn.close()
 
+  conn = psycopg2.connect("dbname=postgres")
+  conn.autocommit = True
+  cur = conn.cursor()
+  cur.execute("DROP DATABASE temp1")
+  conn.close()
+
   # are we a shard?  if so, poll the master for the list of databases
   # and register this node in each one
   if not thisnode.endswith("-0"):
       pod_domain = "{0}.svc.cluster.local".format(os.getenv("POD_NAMESPACE", "default"))
-      master_uri = "{0}-0.{0}.{1}".format(os.genenv("POD_GROUP"),pod_domain)
+      master_uri = "{0}-0.{0}.{1}".format(os.getenv("POD_GROUP"),pod_domain)
       thisnode_uri = "{0}.{1}.{2}".format(thisnode,os.getenv("POD_GROUP"),pod_domain)
       register_in_all_db(master_uri,thisnode_uri)
 
